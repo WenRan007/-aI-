@@ -99,7 +99,7 @@ try:
         result = _account_get_access(self)
         user = result.get("user", result) if isinstance(result, dict) else {}
         phone = "".join(ch for ch in str(user.get("phone", "")) if ch.isdigit())
-        if phone == "18070336010" and str(user.get("role", "")).lower() == "owner":
+        if phone == "<owner-phone>" and str(user.get("role", "")).lower() == "owner":
             result = dict(result)
             result["canTranslate"] = True
         return result
@@ -224,3 +224,4 @@ try:
 except Exception:
     (Path(sys.executable).parent / "bootstrap_error.txt").write_text(traceback.format_exc(), encoding="utf-8")
     raise
+
