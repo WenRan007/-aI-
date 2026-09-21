@@ -1,0 +1,5 @@
+faster-whisper==1.2.1
+ctranslate2==4.8.2
+Pillow==12.3.0
+edge-tts==7.2.8
+av==17.1.0

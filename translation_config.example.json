@@ -1,0 +1,16 @@
+{
+  "whisper_model": "large-v3-turbo",
+  "whisper_device": "cpu",
+  "whisper_compute_type": "int8",
+  "asr_parallel": 1,
+  "translation_engine": "ollama",
+  "ollama_host": "http://127.0.0.1:11434",
+  "ollama_model": "qwen2.5:3b",
+  "ollama_executable": "runtime/ollama/ollama.exe",
+  "ollama_models_dir": "runtime/ollama-models",
+  "ollama_num_gpu": 0,
+  "deepseek_model": "deepseek-chat",
+  "deepseek_endpoint": "https://api.deepseek.com/chat/completions",
+  "deepseek_timeout": 90,
+  "cuda_dir": "runtime/cuda"
+}

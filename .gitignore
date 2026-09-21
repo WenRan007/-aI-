@@ -1,0 +1,37 @@
+# Local credentials and sessions
+*_api_key.txt
+!*.example.txt
+AccessKey*.csv
+*.pem
+*.key
+.env
+.env.*
+!.env.example
+credentials*.json
+*session*.json
+# Each workstation owns its runtime configuration
+/translation_config.json
+/translation_config.local.json
+# Downloaded runtimes, models, outputs and Python/build caches
+/.venv/
+/venv/
+/runtime/
+/models/
+/models_cache/
+/cuda/
+/ollama/
+/ollama-models/
+/temp_audio/
+/stickers/
+/output/
+/outputs/
+/build/
+/dist/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+*.exe
+*.dll
+.pytest_cache/
+/assets/assets/
