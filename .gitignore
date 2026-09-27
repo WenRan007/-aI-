@@ -9,10 +9,10 @@ AccessKey*.csv
 !.env.example
 credentials*.json
 *session*.json
-# Each workstation owns its runtime configuration
+# Workstation-specific config
 /translation_config.json
 /translation_config.local.json
-# Downloaded runtimes, models, outputs and Python/build caches
+# Downloaded runtimes, models, outputs and caches
 /.venv/
 /venv/
 /runtime/
@@ -31,7 +31,9 @@ __pycache__/
 *.pyc
 *.pyo
 *.log
+*.err
 *.exe
 *.dll
 .pytest_cache/
 /assets/assets/
+payload_*.py

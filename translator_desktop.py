@@ -20,6 +20,8 @@ from effect_picker import EffectPicker
 from translation_runtime import load_config, setup_cuda
 from local_translation import OllamaTranslator
 from deepseek_translation import DeepSeekTranslator
+from desktop_account import DesktopAccountClient, AuthRequired, AccessDenied
+from desktop_account_ui import AccountController
 
 # 源语言仍支持自动识别及常见语种；产品输出统一为简体中文。
 LANGUAGES: Sequence[Tuple[str, str]] = (("auto", "自动识别"), ("zh-CN", "中文（简体）"), ("vi", "越南语"), ("en", "英语"), ("zh-TW", "中文（繁体）"), ("ja", "日语"), ("ko", "韩语"), ("th", "泰语"), ("fr", "法语"), ("de", "德语"), ("es", "西班牙语"), ("pt", "葡萄牙语"), ("id", "印尼语"), ("ar", "阿拉伯语"), ("ru", "俄语"))
@@ -62,6 +64,21 @@ class TranslationBackend:
         self.engine = self.config.get("translation_engine", "deepl").lower()
         self.asr_device = self.config.get("whisper_device", "cpu")
         self.asr_compute_type = self.config.get("whisper_compute_type", "int8_float16" if self.asr_device == "cuda" else "int8")
+        # A portable package can be copied to computers without an NVIDIA
+        # device. Detect that case before Whisper is created so the first job
+        # does not fail at 15% with a CUDA error; GPU machines retain the fast
+        # CUDA path automatically.
+        if self.asr_device == "cuda":
+            try:
+                import ctranslate2
+                cuda_devices = ctranslate2.get_cuda_device_count()
+            except Exception:
+                cuda_devices = 0
+            if cuda_devices < 1:
+                self.asr_device = "cpu"
+                self.asr_compute_type = "int8"
+                self.config["whisper_device"] = "cpu"
+                self.config["whisper_compute_type"] = "int8"
         self.asr_status = "模型尚未加载"
         self._asr_slots = threading.Semaphore(max(1, int(self.config.get("asr_parallel", 1))))
         self._ollama = OllamaTranslator(
@@ -653,11 +670,19 @@ class TranslatorApp(tk.Tk):
         super().__init__()
         self.title("常客AI · 批量翻译短视频")
         self.geometry("1180x760"); self.minsize(980, 650)
+        self.account_client = DesktopAccountClient()
+        self.account_controller = None
+        self.account_unlocked = False
+        self.account_generation = 0
         self.backend = TranslationBackend(); self.jobs: List[Job] = []; self.events = queue.Queue(); self.stop_event = threading.Event(); self.pause_event = threading.Event(); self.pause_event.set(); self.worker = None
         self.video_thread = None; self.video_stop = threading.Event(); self.video_pause = threading.Event(); self.video_pause.set(); self.video_path = ""; self.video_image = None
         self.video_window = None; self.video_canvas = None; self.video_frames = queue.Queue(maxsize=2); self.video_pump_id = None
         self.source_var = tk.StringVar(value="auto"); self.mode_var = tk.StringVar(value="批量翻译短视频"); self.localize_var = tk.BooleanVar(value=True); self.emotion_var = tk.BooleanVar(value=True); self.status_var = tk.StringVar(value="就绪：请选择顶部功能后添加视频")
-        self._ui(); self.after(100, self._poll)
+        self.protocol("WM_DELETE_WINDOW", self.close_app)
+        self._ui()
+        self.account_controller = AccountController(self, self.account_client, self.on_account_unlocked, self.on_account_locked)
+        self.after(100, self._poll)
+        self.account_controller.start()
     def _ui(self):
         # 深色工作台布局：左侧功能导航、顶部项目操作区、中央参数卡片与批量队列。
         self.configure(bg="#0f1117")
@@ -704,7 +729,11 @@ class TranslatorApp(tk.Tk):
         content = tk.Frame(shell, bg="#0f1117", padx=22, pady=18); content.pack(side="left", fill="both", expand=True)
         top = tk.Frame(content, bg="#0f1117"); top.pack(fill="x", pady=(0, 15))
         self.page_title = tk.Label(top, text="批量翻译短视频", bg="#0f1117", fg="#ffffff", font=("Microsoft YaHei UI", 20, "bold")); self.page_title.pack(side="left")
-        self.start = ttk.Button(top, text="▶  开始批量处理", style="Accent.TButton", command=self.start_jobs); self.start.pack(side="right")
+        self.start = ttk.Button(top, text="▶  开始批量处理", style="Accent.TButton", command=self.start_jobs, state="disabled"); self.start.pack(side="right")
+        self.logout_btn = ttk.Button(top, text="退出登录", style="Top.TButton", command=lambda: self.account_controller.logout(), state="disabled"); self.logout_btn.pack(side="right", padx=(0, 8))
+        self.profile_btn = ttk.Button(top, text="个人资料", style="Top.TButton", command=lambda: self.account_controller.show_profile(), state="disabled"); self.profile_btn.pack(side="right", padx=(0, 8))
+        self.team_btn = ttk.Button(top, text="团队管理", style="Top.TButton", command=lambda: self.account_controller.show_team(), state="disabled"); self.team_btn.pack(side="right", padx=(0, 8))
+        self.account_status = tk.Label(top, text="未登录", bg="#0f1117", fg="#8794ae", font=("Microsoft YaHei UI", 9)); self.account_status.pack(side="right", padx=(0, 14))
         self.workspace = tk.Frame(content, bg="#0f1117"); self.workspace.pack(fill="both", expand=True)
 
         settings = ttk.LabelFrame(self.workspace, text="翻译设置", style="Card.TLabelframe", padding=12); settings.pack(fill="x")
@@ -804,6 +833,42 @@ class TranslatorApp(tk.Tk):
             self.source_var.set("auto")
         else:
             self.source_var.set(next((code for code, name in LANGUAGES if name == selected), "auto"))
+
+    def on_account_unlocked(self, user: dict):
+        """Unlock the current workspace after the server confirms access."""
+        self.account_unlocked = True
+        self.account_generation += 1
+        display_name = str(user.get("displayName") or user.get("display_name") or user.get("phone") or "已登录")
+        role = str(user.get("role", "")).lower()
+        self.account_status.configure(text=f"已登录：{display_name}", fg="#52d6b1")
+        self.start.configure(state="normal")
+        self.profile_btn.configure(state="normal")
+        self.logout_btn.configure(state="normal")
+        self.team_btn.configure(state="normal" if role == "owner" else "disabled")
+        self.status_var.set(f"已登录：{display_name}，可以开始处理视频")
+
+    def on_account_locked(self, reason: str):
+        """Immediately disable processing when logout or server revokes access."""
+        self.account_unlocked = False
+        self.account_generation += 1
+        self.account_status.configure(text="未授权", fg="#ff9b9b")
+        self.start.configure(state="disabled")
+        self.profile_btn.configure(state="disabled")
+        self.team_btn.configure(state="disabled")
+        self.logout_btn.configure(state="disabled")
+        if reason:
+            self.status_var.set(str(reason))
+
+    def close_app(self):
+        if self.worker and self.worker.is_alive():
+            self.stop_event.set()
+            self.pause_event.set()
+        try:
+            if self.account_controller is not None:
+                self.account_controller.close()
+        finally:
+            self.destroy()
+
     def provider_changed(self, _event=None):
         selected = self.provider_var.get()
         if selected.startswith("Ollama"):
@@ -1042,8 +1107,11 @@ class TranslatorApp(tk.Tk):
             self.preview_text.insert("end", content[cursor:])
         self.preview_text.configure(state="disabled")
     def start_jobs(self):
+        if not self.account_unlocked:
+            return messagebox.showinfo("需要登录", "请先登录并获得主账号授权。", parent=self)
         if self.worker and self.worker.is_alive(): return
         if not self.jobs: return messagebox.showinfo("没有任务", "请先添加视频文件。")
+        self._run_account_generation = self.account_generation
         self.provider_changed(); self._run_options = (self.localize_var.get(), self.emotion_var.get())
         self.provider_combo.configure(state="disabled")
         self.stop_event.clear(); self.pause_event.set(); self.pause_btn.configure(text="暂停"); self.start.configure(state="disabled"); self.worker=threading.Thread(target=self.run, daemon=True); self.worker.start(); self.update_remove_button()
@@ -1098,6 +1166,7 @@ class TranslatorApp(tk.Tk):
         if self.worker and self.worker.is_alive(): self.stop_event.set(); self.pause_event.set(); self.pause_btn.configure(text="暂停"); self.status_var.set("正在停止…")
     def run(self):
         jobs=list(self.jobs); done=0
+        run_generation = getattr(self, "_run_account_generation", self.account_generation)
         prepared = {}
         # The 6 GB GPU is shared: recognize the batch first, then release Whisper
         # before loading the LLM. Never keep two large models resident together.
@@ -1125,9 +1194,9 @@ class TranslatorApp(tk.Tk):
                     future.result()
             self.backend.release_recognition_model()
         def one(idx,j):
-            if self.stop_event.is_set(): return
+            if self.stop_event.is_set() or not self.account_unlocked or run_generation != self.account_generation: return
             self.pause_event.wait()
-            if self.stop_event.is_set(): return
+            if self.stop_event.is_set() or not self.account_unlocked or run_generation != self.account_generation: return
             try:
                 if self.backend.engine == "ollama":
                     if idx not in prepared: return
@@ -1136,16 +1205,16 @@ class TranslatorApp(tk.Tk):
                     self.events.put(("u",(idx,"本地识别（首次加载模型）" if self.backend._whisper is None else "本地识别口播",15)))
                     seg, detected_source = self.backend.transcribe_with_language(j.video,j.source)
                 self.pause_event.wait()
-                if self.stop_event.is_set(): return
+                if self.stop_event.is_set() or not self.account_unlocked or run_generation != self.account_generation: return
                 self.events.put(("u",(idx,"等待翻译",50)))
                 with self.backend._translation_slots:
                     self.pause_event.wait()
-                    if self.stop_event.is_set(): return
+                    if self.stop_event.is_set() or not self.account_unlocked or run_generation != self.account_generation: return
                     self.events.put(("u",(idx,self.backend.engine_label,55)))
                     localize, emotion = getattr(self, "_run_options", (True, True))
                     seg=self.backend.translate(seg,j.source,j.target,localize,emotion,detected_source)
                 self.pause_event.wait()
-                if self.stop_event.is_set(): return
+                if self.stop_event.is_set() or not self.account_unlocked or run_generation != self.account_generation: return
                 if not seg or not any((s.translated or "").strip() for s in seg):
                     raise RuntimeError("翻译服务未返回有效译文，未生成输出文件。")
                 attention = bool(find_highlights("\n".join((s.translated or "").strip() for s in seg)))
@@ -1189,7 +1258,7 @@ class TranslatorApp(tk.Tk):
                     self.status_var.set(f"任务失败：{Path(self.jobs[p[0]].video).name} · {p[1]}")
                 elif kind=="a": self.status_var.set(f"已完成 {p}/{len(self.jobs)} 个任务")
                 elif kind=="done":
-                    self.start.configure(state="normal")
+                    self.start.configure(state="normal" if self.account_unlocked else "disabled")
                     self.provider_combo.configure(state="readonly")
                     self.pause_btn.configure(text="暂停"); self.pause_event.set()
                     if self.stop_event.is_set():
