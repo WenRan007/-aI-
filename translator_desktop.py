@@ -61,7 +61,8 @@ class TranslationBackend:
         self._cache_lock = threading.Lock()
         self._transcript_cache = {}
         self._model_name = self.config.get("whisper_model", "small")
-        self.engine = self.config.get("translation_engine", "deepl").lower()
+        # 团队版固定使用软件目录中的独立 DeepL Key，避免误切到其他翻译通道。
+        self.engine = "deepl"
         self.asr_device = self.config.get("whisper_device", "cpu")
         self.asr_compute_type = self.config.get("whisper_compute_type", "int8_float16" if self.asr_device == "cuda" else "int8")
         # A portable package can be copied to computers without an NVIDIA
@@ -743,9 +744,9 @@ class TranslatorApp(tk.Tk):
         self.source_combo = ttk.Combobox(line, state="readonly", width=18, style="Source.TCombobox", values=source_values); self.source_combo.pack(side="left", padx=10); self.source_combo.set("自动识别（推荐）" if self.source_var.get() == "auto" else LANG_NAME[self.source_var.get()]); self.source_combo.bind("<<ComboboxSelected>>", self.source_changed)
         engine = tk.Frame(settings, bg="#171a22"); engine.pack(fill="x", pady=(10, 0))
         tk.Label(engine, text="翻译引擎", bg="#171a22", fg="#9eabc4", font=("Microsoft YaHei UI", 9)).pack(side="left")
-        self.provider_var = tk.StringVar(value=self.backend.engine_label)
+        self.provider_var = tk.StringVar(value="DeepL 在线翻译")
         self.provider_combo = ttk.Combobox(engine, textvariable=self.provider_var, state="readonly", width=19,
-            values=("Ollama 本地翻译", "DeepSeek 云端翻译", "DeepL 在线翻译"), style="Source.TCombobox")
+            values=("DeepL 在线翻译",), style="Source.TCombobox")
         self.provider_combo.pack(side="left", padx=8)
         self.provider_combo.bind("<<ComboboxSelected>>", self.provider_changed)
         self.engine_note = tk.Label(settings, text=self.backend.engine_description, bg="#171a22", fg="#d1a46f", font=("Microsoft YaHei UI", 9)); self.engine_note.pack(anchor="w", pady=(7, 0))
@@ -870,13 +871,7 @@ class TranslatorApp(tk.Tk):
             self.destroy()
 
     def provider_changed(self, _event=None):
-        selected = self.provider_var.get()
-        if selected.startswith("Ollama"):
-            self.backend.engine = "ollama"
-        elif selected.startswith("DeepSeek"):
-            self.backend.engine = "deepseek"
-        else:
-            self.backend.engine = "deepl"
+        self.backend.engine = "deepl"
         self.engine_note.configure(text=self.backend.engine_description)
         self.sidebar_engine.configure(text="●  " + self.backend.engine_label)
         if _event is not None:

@@ -9,9 +9,8 @@
 ## AI 配置
 
 - 识别：本地 `faster-whisper large-v3-turbo`，支持 NVIDIA CUDA，也会在没有兼容显卡时自动切换 CPU。
-- 翻译：默认本机 Ollama `qwen2.5:3b`；界面可选 DeepSeek 云端翻译或 DeepL 在线翻译。
+- 翻译：默认本机 Ollama `qwen2.5:3b`；团队版固定使用独立 DeepL Key 翻译。
 - Ollama 地址：`http://127.0.0.1:11434`。
-- DeepSeek Key 只从软件目录的 `deepseek_api_key.txt` 或环境变量 `DEEPSEEK_API_KEY` 读取。
 - DeepL Key 只从软件目录的 `deepl_api_key.txt` 或环境变量 `DEEPL_API_KEY` 读取。
 
 真实 API Key、短信会话、模型权重、用户视频和本机配置不会提交到仓库，请使用对应的 `.example.txt` 或 `translation_config.example.json` 配置。
@@ -43,3 +42,4 @@ python -m unittest discover -s tests -v
 ```
 
 当前入口为 `translator_desktop.py`；`desktop_account.py` 和 `desktop_account_ui.py` 提供登录、权限刷新、个人资料和团队管理。
+
