@@ -349,7 +349,8 @@ class UpdaterWindow:
         tk.Label(self.root, text="常客AI 在线更新器", fg="#ffffff", bg="#111521", font=("Microsoft YaHei UI", 17, "bold")).pack(anchor="w", padx=26, pady=(22, 4))
         tk.Label(self.root, text="自动检查版本，按需下载增量包；首次使用会下载完整运行包。模型、贴纸和密钥会保留。", fg="#aeb8d0", bg="#111521", wraplength=620, justify="left").pack(anchor="w", padx=26, pady=(0, 17))
 
-        self.target_var = tk.StringVar(value=str(find_app_dir()))
+        target_override = os.getenv("CHANGKE_APP_DIR", "").strip()
+        self.target_var = tk.StringVar(value=target_override or str(find_app_dir()))
         self.manifest_var = tk.StringVar(value=configured_manifest_url())
         self.add_row("安装目录", self.target_var, self.choose_target)
         self.add_row("更新清单", self.manifest_var, self.choose_manifest)

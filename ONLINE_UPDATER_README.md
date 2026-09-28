@@ -10,6 +10,8 @@
    `https://raw.githubusercontent.com/WenRan007/-aI-/main/update-manifest.json`
 4. 把打包出的 `常客AI在线更新器.exe` 和旁边的 `online_update_config.json` 发给团队。更新器会自动读取上述清单；管理员只需修改 JSON 中的 `manifest_url` 就能切换发布源，无需重新编译。
 
+也可以直接双击 `常客AI在线更新.bat`。它会自动从 GitHub 下载最新更新器并启动，不需要团队成员手动复制补丁。
+
 更新包为全量 ZIP 时，清单所在版本首次运行即可安装；更新包为增量 ZIP 时，目标电脑必须已经有 `_internal` 和 `常客AI2.2.exe`。更新前会备份并保留 `models_cache`、`stickers`、`temp_audio`、配置和密钥。
 
 ## 本地测试
