@@ -1,0 +1,8 @@
+{
+  "app_id": "changke-ai",
+  "version": "2.2.10",
+  "package_url": "https://raw.githubusercontent.com/WenRan007/-aI-/main/changke-ai-2.2.10-delta.zip",
+  "package_sha256": "124f7c4809f93378c4be82fcbb7b3c38d0b12bd2cad2bebf9870be7fc8a3e440",
+  "package_size": 10248494,
+  "release_notes": "修复本地翻译运行库加载，自动补齐常客AI核心.exe，不覆盖模型、贴纸、配置和密钥。"
+}

@@ -1,0 +1,8 @@
+{
+  "app_id": "changke-ai",
+  "version": "2.2.10",
+  "package_url": "https://your-domain.example.com/changke-ai-2.2.10.zip",
+  "package_sha256": "PUT_THE_ZIP_SHA256_HERE",
+  "package_size": 0,
+  "release_notes": "在线更新器首个版本。保留模型、贴纸、配置和密钥。"
+}
