@@ -1,8 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 from pathlib import Path
+import os
 
 ROOT = Path(SPECPATH)
-APP_SOURCE = Path(r"C:\Users\qqq\Desktop\常客AI2.2")
+APP_SOURCE = Path(
+    os.environ.get(
+        "CHANGKE_APP_SOURCE",
+        str(Path.home() / "Desktop" / "常客AI2.2"),
+    )
+)
 
 a = Analysis(
     [str(ROOT / "online_updater.py")],
