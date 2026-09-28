@@ -13,5 +13,5 @@ if not exist "%UPDATER%" (
 )
 
 if exist "%~dp0_internal" set "CHANGKE_APP_DIR=%~dp0"
-start "常客AI在线更新器" "%UPDATER%"
+start "常客AI在线更新器" "%UPDATER%" --auto
 exit /b 0

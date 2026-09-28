@@ -479,5 +479,48 @@ class UpdaterWindow:
         self.root.mainloop()
 
 
+def run_headless_update() -> int:
+    """Run one update without opening the updater form (used by the .bat)."""
+    try:
+        target_override = os.getenv("CHANGKE_APP_DIR", "").strip()
+        target = Path(target_override or find_app_dir()).expanduser()
+        manifest = read_json_url(configured_manifest_url())
+        if manifest.get("app_id", APP_ID) != APP_ID:
+            raise ValueError("更新清单不是常客AI的清单")
+        if not manifest.get("package_url"):
+            channel = "delta" if is_app_dir(target) else "full"
+            entry = manifest.get(channel) or {}
+            manifest["package_url"] = entry.get("url")
+            manifest["package_sha256"] = entry.get("sha256")
+        for key in ("version", "package_url", "package_sha256"):
+            if not manifest.get(key):
+                raise ValueError(f"更新清单缺少字段：{key}")
+        current = local_version(target)
+        latest = str(manifest["version"])
+        if parse_version(latest) <= parse_version(current) and is_app_dir(target):
+            return 0
+        cache_dir = target.parent / "update_downloads"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        package = cache_dir / ("changke-ai-" + latest + ".zip")
+        download(str(manifest["package_url"]), package)
+        actual = sha256(package)
+        if actual.lower() != str(manifest["package_sha256"]).lower().strip():
+            package.unlink(missing_ok=True)
+            raise RuntimeError("更新包 SHA-256 校验失败")
+        backup, _ = apply_update(target, package, manifest)
+        launcher = target / "常客AI2.2.exe"
+        if launcher.is_file():
+            subprocess.Popen([str(launcher)], cwd=str(target), close_fds=True)
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showerror("常客AI自动更新失败", str(exc))
+        root.destroy()
+        return 1
+
+
 if __name__ == "__main__":
+    if "--auto" in sys.argv:
+        raise SystemExit(run_headless_update())
     UpdaterWindow().run()
